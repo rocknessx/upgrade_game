@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sword, Shield, Sparkles, Trophy, RotateCcw, Info, Clock, User, Calendar } from 'lucide-react'
+import { useSession, signIn, signOut } from 'next-auth/react'
 
 // Upgrade constants (KO style)
 const UPGRADE_CHANCES: Record<number, number> = {
@@ -76,6 +77,7 @@ const getDefaultGameState = (): GameState => ({
 })
 
 export default function Home() {
+  const { data: session, status } = useSession()
   const [gameState, setGameState] = useState<GameState>(() => getDefaultGameState())
   const [useSafeguard, setUseSafeguard] = useState(false)
   const [isUpgrading, setIsUpgrading] = useState(false)
@@ -137,47 +139,46 @@ export default function Home() {
     }
   }, [gameState])
 
-  // Reddit Auth with NextAuth
+  // Reddit Auth with NextAuth - GERÇEK ENTEGRASYON
   const connectReddit = () => {
-    // For now, keep simulation until NextAuth is fully setup
-    const username = prompt('Reddit kullanıcı adınızı girin:')
-    if (username) {
-      const mockRedditData = {
-        username: username,
-        joinDate: '2020-01-15',
-        karma: Math.floor(Math.random() * 10000) + 1000
+    signIn('reddit')
+  }
+
+  // Session değiştiğinde oyun state'ini güncelle
+  useEffect(() => {
+    if (session?.user && !gameState.redditUser) {
+      const redditData = {
+        username: (session.user as any).username || session.user.name || 'reddit_user',
+        joinDate: '2020-01-15', // Bu bilgi Reddit API'den alınabilir
+        karma: (session.user as any).karma || 0
       }
       
       setGameState(prev => ({
         ...prev,
-        redditUser: mockRedditData,
-        points: prev.points + 100, // Fixed 100 bonus points
+        redditUser: redditData,
+        points: prev.points + 100, // 100 bonus points
         safeguardStones: prev.safeguardStones + 5 // 5 safeguard stones
       }))
-      
-      alert(`🎉 Reddit hesabı bağlandı!\n+100 bonus point ve 5 güvenli taş aldınız!`)
     }
-    
-    // Real Reddit Auth (activate after .env setup)
-    // signIn('reddit')
-  }
+  }, [session, gameState.redditUser])
 
-  // Buy points with reddit karma
+  // Buy points with reddit karma - GERÇEK KARMA KULLANIMI
   const buyPointsWithKarma = () => {
-    if (!gameState.redditUser) {
+    if (!session?.user) {
       alert('Önce Reddit hesabınızı bağlamanız gerekiyor!')
       return
     }
 
+    const currentKarma = (session.user as any).karma || 0
     const karmaToSpend = 1
     const pointsToGet = 100
     
-    if (gameState.redditUser.karma < karmaToSpend) {
-      alert(`Yetersiz karma! En az ${karmaToSpend} karma gerekiyor.`)
+    if (currentKarma < karmaToSpend) {
+      alert(`Yetersiz karma! En az ${karmaToSpend} karma gerekiyor. Şu anki karma: ${currentKarma}`)
       return
     }
 
-    if (confirm(`${karmaToSpend} Reddit karma harcayarak ${pointsToGet} oyun puanı satın almak istiyor musunuz?`)) {
+    if (confirm(`${karmaToSpend} Reddit karma harcayarak ${pointsToGet} oyun puanı satın almak istiyor musunuz?\n\nMevcut karma: ${currentKarma}`)) {
       setGameState(prev => ({
         ...prev,
         points: prev.points + pointsToGet,
@@ -323,12 +324,20 @@ export default function Home() {
           
           {/* Reddit Connection */}
           <div className="mt-4">
-            {gameState.redditUser ? (
+            {session?.user ? (
               <div className="flex items-center justify-center space-x-2 text-orange-400">
                 <User size={16} />
-                <span>u/{gameState.redditUser.username}</span>
-                <span className="text-gray-500">• {gameState.redditUser.karma} karma</span>
+                <span>u/{(session.user as any).username || session.user.name}</span>
+                <span className="text-gray-500">• {(session.user as any).karma || 0} karma</span>
+                <button
+                  onClick={() => signOut()}
+                  className="ml-2 text-xs bg-red-500/20 px-2 py-1 rounded hover:bg-red-500/30 transition-colors"
+                >
+                  Çıkış
+                </button>
               </div>
+            ) : status === 'loading' ? (
+              <div className="text-gray-400">Yükleniyor...</div>
             ) : (
               <button
                 onClick={connectReddit}
@@ -443,10 +452,10 @@ export default function Home() {
               </div>
 
               {/* Reddit Karma */}
-              {gameState.redditUser && (
+              {session?.user && (
                 <div className="mb-6 text-center">
                   <div className="inline-flex items-center space-x-2 bg-orange-500/20 px-4 py-2 rounded-lg border border-orange-500/30">
-                    <span className="text-orange-400 font-bold">🏆 Reddit Karma: {gameState.redditUser.karma}</span>
+                    <span className="text-orange-400 font-bold">🏆 Reddit Karma: {(session.user as any).karma || 0}</span>
                   </div>
                 </div>
               )}
@@ -527,9 +536,9 @@ export default function Home() {
                 {/* Buy Points with Karma */}
                 <button
                   onClick={buyPointsWithKarma}
-                  disabled={!gameState.redditUser || (gameState.redditUser?.karma || 0) < 1}
+                  disabled={!session?.user || ((session.user as any).karma || 0) < 1}
                   className={`w-full py-2 border rounded-lg transition-colors ${
-                    !gameState.redditUser || (gameState.redditUser?.karma || 0) < 1
+                    !session?.user || ((session.user as any).karma || 0) < 1
                       ? 'bg-gray-600 border-gray-500 cursor-not-allowed opacity-50' 
                       : 'bg-blue-500/20 border-blue-500/30 hover:bg-blue-500/30'
                   }`}
