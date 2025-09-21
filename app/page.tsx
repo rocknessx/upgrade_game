@@ -71,7 +71,7 @@ const getDefaultGameState = (): GameState => ({
   totalAttempts: 0, 
   successfulUpgrades: 0,
   lastResetDate: new Date().toDateString(),
-  weaponType: WEAPON_TYPES[Math.floor(Math.random() * WEAPON_TYPES.length)],
+  weaponType: 'Raptor Bow', // Fixed weapon type to prevent hydration mismatch
   safeguardStones: 0,
   dailyPostSubmitted: false
 })
@@ -109,10 +109,8 @@ export default function Home() {
         if (saved) {
           const parsedState = JSON.parse(saved)
           const resetState = checkDailyReset(parsedState)
-          console.log('Loaded game state:', resetState)
           setGameState(resetState)
         } else {
-          console.log('No saved state, using default')
           const defaultState = getDefaultGameState()
           setGameState(defaultState)
           localStorage.setItem('ko-upgrade-game', JSON.stringify(defaultState))
@@ -134,7 +132,6 @@ export default function Home() {
   // Save game state to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      console.log('Saving game state:', gameState)
       localStorage.setItem('ko-upgrade-game', JSON.stringify(gameState))
     }
   }, [gameState])
